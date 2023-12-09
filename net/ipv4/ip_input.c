@@ -558,8 +558,7 @@ out:
  * IP receive entry point
  */
 int ip_rcv(struct sk_buff *skb, struct net_device *dev, struct packet_type *pt,
-	   struct net_device *orig_dev)
-{
+	   struct net_device *orig_dev) {
 	struct net *net = dev_net(dev);
 
 	skb = ip_rcv_core(skb, net);

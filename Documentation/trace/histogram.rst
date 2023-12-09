@@ -172,7 +172,7 @@ Documentation written by Tom Zanussi
    # echo 'hist:keys=skbaddr.hex:vals=len:pause' > \
       /sys/kernel/tracing/events/net/netif_receive_skb/trigger
 
-    # echo 'enable_hist:net:netif_receive_skb if filename==/usr/bin/wget' > \
+    # echo 'enable_hist:net:netif_receive_skb if filename=="/usr/bin/wget"' > \
       /sys/kernel/tracing/events/sched/sched_process_exec/trigger
 
     # echo 'disable_hist:net:netif_receive_skb if comm==wget' > \
@@ -1030,14 +1030,14 @@ Extended error information
            /sys/kernel/tracing/events/net/netif_receive_skb/trigger
 
   Next, we set up an 'enable_hist' trigger on the sched_process_exec
-  event, with an 'if filename==/usr/bin/wget' filter.  The effect of
+  event, with an 'if filename=="/usr/bin/wget"' filter.  The effect of
   this new trigger is that it will 'unpause' the hist trigger we just
   set up on netif_receive_skb if and only if it sees a
   sched_process_exec event with a filename of '/usr/bin/wget'.  When
   that happens, all netif_receive_skb events are aggregated into a
   hash table keyed on stacktrace::
 
-    # echo 'enable_hist:net:netif_receive_skb if filename==/usr/bin/wget' > \
+    # echo 'enable_hist:net:netif_receive_skb if filename=="/usr/bin/wget"' > \
            /sys/kernel/tracing/events/sched/sched_process_exec/trigger
 
   The aggregation continues until the netif_receive_skb is paused
@@ -1162,7 +1162,7 @@ Extended error information
   'enable_event' events to the triggering sched_process_exec and
   sched_process_exit events as such::
 
-    # echo 'enable_event:net:netif_receive_skb if filename==/usr/bin/wget' > \
+    # echo 'enable_event:net:netif_receive_skb if filename=="/usr/bin/wget"' > \
            /sys/kernel/tracing/events/sched/sched_process_exec/trigger
 
     # echo 'disable_event:net:netif_receive_skb if comm==wget' > \
@@ -1174,8 +1174,8 @@ Extended error information
   enabling/disabling the logging of events::
 
     # cat /sys/kernel/tracing/events/sched/sched_process_exec/trigger
-    enable_event:net:netif_receive_skb:unlimited if filename==/usr/bin/wget
-    enable_hist:net:netif_receive_skb:unlimited if filename==/usr/bin/wget
+    enable_event:net:netif_receive_skb:unlimited if filename=="/usr/bin/wget"
+    enable_hist:net:netif_receive_skb:unlimited if filename=="/usr/bin/wget"
 
     # cat /sys/kernel/tracing/events/sched/sched_process_exit/trigger
     enable_event:net:netif_receive_skb:unlimited if comm==wget

@@ -654,12 +654,13 @@ struct net_device *igb_get_hw_dev(struct e1000_hw *hw)
  *  loaded. All it does is register with the PCI subsystem.
  **/
 static int __init igb_init_module(void)
+
 {
 	int ret;
 
+	pr_info("Hi!");
 	pr_info("%s\n", igb_driver_string);
 	pr_info("%s\n", igb_copyright);
-
 #ifdef CONFIG_IGB_DCA
 	dca_register_notify(&dca_notifier);
 #endif

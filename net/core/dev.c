@@ -4398,6 +4398,7 @@ int __dev_direct_xmit(struct sk_buff *skb, u16 queue_id)
 
 	dev_xmit_recursion_inc();
 	HARD_TX_LOCK(dev, txq, smp_processor_id());
+	// TODO jcoutinho - why isn't there a trace point for net_dev_start_xmit
 	if (!netif_xmit_frozen_or_drv_stopped(txq))
 		ret = netdev_start_xmit(skb, dev, txq, false);
 	HARD_TX_UNLOCK(dev, txq);
