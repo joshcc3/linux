@@ -6454,7 +6454,7 @@ unmap:
 				       DMA_TO_DEVICE);
 		dma_unmap_len_set(tx_buffer, len, 0);
 		if (tx_buffer == tx_head)
-			break;
+ 			break;
 
 		if (!index)
 			index += tx_ring->count;
@@ -6491,7 +6491,7 @@ netdev_tx_t igb_xmit_frame_ring(struct sk_buff *skb,
 	}
 
 	/* record the location of the first descriptor for this packet */
-	first = &tx_ring->tx_buffer_info[tx_ring->next_to_use];
+ 	first = &tx_ring->tx_buffer_info[tx_ring->next_to_use];
 	first->type = IGB_TYPE_SKB;
 	first->skb = skb;
 	first->bytecount = skb->len;
@@ -7099,7 +7099,7 @@ static irqreturn_t igb_msix_ring(int irq, void *data)
 	igb_write_itr(q_vector);
 
 	//	pr_info("MSIX Call");
-	ktime_get_real_ts64(&last_recorded_time);
+	//	ktime_get_real_ts64(&last_recorded_time);
 	
 	napi_schedule(&q_vector->napi);
 
