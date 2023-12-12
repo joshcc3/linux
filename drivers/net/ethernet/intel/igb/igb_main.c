@@ -3,6 +3,7 @@
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
+#include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/types.h>
 #include <linux/init.h>
@@ -32,6 +33,7 @@
 #include <linux/bpf.h>
 #include <linux/bpf_trace.h>
 #include <linux/pm_runtime.h>
+#include <linux/time64.h>
 #include <linux/etherdevice.h>
 #ifdef CONFIG_IGB_DCA
 #include <linux/dca.h>
@@ -235,6 +237,11 @@ static struct pci_driver igb_driver = {
 MODULE_AUTHOR("Intel Corporation, <e1000-devel@lists.sourceforge.net>");
 MODULE_DESCRIPTION("Intel(R) Gigabit Ethernet Network Driver");
 MODULE_LICENSE("GPL v2");
+
+
+static struct timespec64 last_recorded_time = {0, 0};
+
+
 
 #define DEFAULT_MSG_ENABLE (NETIF_MSG_DRV|NETIF_MSG_PROBE|NETIF_MSG_LINK)
 static int debug = -1;
@@ -7091,6 +7098,9 @@ static irqreturn_t igb_msix_ring(int irq, void *data)
 	/* Write the ITR value calculated from the previous interrupt. */
 	igb_write_itr(q_vector);
 
+	//	pr_info("MSIX Call");
+	ktime_get_real_ts64(&last_recorded_time);
+	
 	napi_schedule(&q_vector->napi);
 
 	return IRQ_HANDLED;
@@ -8132,6 +8142,7 @@ static irqreturn_t igb_intr_msi(int irq, void *data)
 	if (icr & E1000_ICR_TS)
 		igb_tsync_interrupt(adapter);
 
+	pr_info("MSI interrupt\n");
 	napi_schedule(&q_vector->napi);
 
 	return IRQ_HANDLED;
@@ -8211,6 +8222,17 @@ static void igb_ring_irq_enable(struct igb_q_vector *q_vector)
  **/
 static int igb_poll(struct napi_struct *napi, int budget)
 {
+
+	struct timespec64 current_time, elapsed_time;
+	ktime_get_real_ts64(&current_time);
+	
+	elapsed_time.tv_sec = current_time.tv_sec - last_recorded_time.tv_sec;
+        elapsed_time.tv_nsec = current_time.tv_nsec - last_recorded_time.tv_nsec;
+
+	//	pr_info("Poll: %lld.%09ld seconds\n",
+	//		(long long)elapsed_time.tv_sec, elapsed_time.tv_nsec);
+
+  
 	struct igb_q_vector *q_vector = container_of(napi,
 						     struct igb_q_vector,
 						     napi);

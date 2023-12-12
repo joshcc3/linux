@@ -1133,6 +1133,8 @@ Extended error information
         Entries: 4
         Dropped: 0
 
+        https://www.kernel.org/doc/html/v4.14/dev-tools/gdb-kernel-debugging.html
+
   The above shows all the netif_receive_skb callpaths and their total
   lengths for the duration of the wget command.
 
