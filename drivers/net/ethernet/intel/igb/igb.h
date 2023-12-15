@@ -286,6 +286,7 @@ struct igb_rx_buffer {
 	__u16 page_offset;
 #endif
 	__u16 pagecnt_bias;
+  __u32 joshFlags;
 };
 
 struct igb_tx_queue_stats {

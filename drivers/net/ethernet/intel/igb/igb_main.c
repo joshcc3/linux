@@ -40,6 +40,11 @@
 #endif
 #include <linux/i2c.h>
 #include "igb.h"
+#include "josh_receive.h"
+
+static void mybug() {
+  pr_info("Bug detected, continuing");
+}
 
 enum queue_mode {
 	QUEUE_MODE_STRICT_PRIORITY,
@@ -237,10 +242,6 @@ static struct pci_driver igb_driver = {
 MODULE_AUTHOR("Intel Corporation, <e1000-devel@lists.sourceforge.net>");
 MODULE_DESCRIPTION("Intel(R) Gigabit Ethernet Network Driver");
 MODULE_LICENSE("GPL v2");
-
-
-static struct timespec64 last_recorded_time = {0, 0};
-
 
 
 #define DEFAULT_MSG_ENABLE (NETIF_MSG_DRV|NETIF_MSG_PROBE|NETIF_MSG_LINK)
@@ -665,7 +666,6 @@ static int __init igb_init_module(void)
 {
 	int ret;
 
-	pr_info("Hi!");
 	pr_info("%s\n", igb_driver_string);
 	pr_info("%s\n", igb_copyright);
 #ifdef CONFIG_IGB_DCA
@@ -940,7 +940,7 @@ static int igb_request_msix(struct igb_adapter *adapter)
 	unsigned int num_q_vectors = adapter->num_q_vectors;
 	struct net_device *netdev = adapter->netdev;
 	int i, err = 0, vector = 0, free_vector = 0;
-
+	
 	err = request_irq(adapter->msix_entries[vector].vector,
 			  igb_msix_other, 0, netdev->name, adapter);
 	if (err)
@@ -7094,14 +7094,19 @@ static void igb_write_itr(struct igb_q_vector *q_vector)
 static irqreturn_t igb_msix_ring(int irq, void *data)
 {
 	struct igb_q_vector *q_vector = data;
-
 	/* Write the ITR value calculated from the previous interrupt. */
 	igb_write_itr(q_vector);
 
 	//	pr_info("MSIX Call");
 	//	ktime_get_real_ts64(&last_recorded_time);
-	
+	// TODO - what are these interrupts coming in on queue 0?
+
+	if(q_vector->rx.ring) {
+	  // TODO - fix all marketdata to a particular queue so you should always call out.
+	  josh_handle_packets(q_vector, irq);
+	}
 	napi_schedule(&q_vector->napi);
+
 
 	return IRQ_HANDLED;
 }
@@ -8223,16 +8228,6 @@ static void igb_ring_irq_enable(struct igb_q_vector *q_vector)
 static int igb_poll(struct napi_struct *napi, int budget)
 {
 
-	struct timespec64 current_time, elapsed_time;
-	ktime_get_real_ts64(&current_time);
-	
-	elapsed_time.tv_sec = current_time.tv_sec - last_recorded_time.tv_sec;
-        elapsed_time.tv_nsec = current_time.tv_nsec - last_recorded_time.tv_nsec;
-
-	//	pr_info("Poll: %lld.%09ld seconds\n",
-	//		(long long)elapsed_time.tv_sec, elapsed_time.tv_nsec);
-
-  
 	struct igb_q_vector *q_vector = container_of(napi,
 						     struct igb_q_vector,
 						     napi);
@@ -8243,8 +8238,9 @@ static int igb_poll(struct napi_struct *napi, int budget)
 	if (q_vector->adapter->flags & IGB_FLAG_DCA_ENABLED)
 		igb_update_dca(q_vector);
 #endif
-	if (q_vector->tx.ring)
-		clean_complete = igb_clean_tx_irq(q_vector, budget);
+	if (q_vector->tx.ring) {
+	  clean_complete = igb_clean_tx_irq(q_vector, budget);
+	}
 
 	if (q_vector->rx.ring) {
 		int cleaned = igb_clean_rx_irq(q_vector, budget);
@@ -8468,6 +8464,7 @@ static void igb_reuse_rx_page(struct igb_ring *rx_ring,
 	new_buff->page		= old_buff->page;
 	new_buff->page_offset	= old_buff->page_offset;
 	new_buff->pagecnt_bias	= old_buff->pagecnt_bias;
+	new_buff->joshFlags     = 0;
 }
 
 static bool igb_can_reuse_rx_page(struct igb_rx_buffer *rx_buffer,
@@ -8876,15 +8873,19 @@ static struct igb_rx_buffer *igb_get_rx_buffer(struct igb_ring *rx_ring,
 #else
 		0;
 #endif
-	prefetchw(rx_buffer->page);
 
-	/* we are reusing so sync this buffer for CPU use */
-	dma_sync_single_range_for_cpu(rx_ring->dev,
-				      rx_buffer->dma,
-				      rx_buffer->page_offset,
-				      size,
-				      DMA_FROM_DEVICE);
+        if(!((rx_buffer->joshFlags >> JOSH_RX_PAGE_IN_CACHE_SHIFT) & 1)) {
+	  MYASSERT(!((rx_buffer->joshFlags >> JOSH_RX_PAGE_PROCESSED_SHIFT) & 1), "Page not in cache but processed");
 
+	  prefetchw(rx_buffer->page);
+
+	  /* we are reusing so sync this buffer for CPU use */
+	  dma_sync_single_range_for_cpu(rx_ring->dev,
+					rx_buffer->dma,
+					rx_buffer->page_offset,
+					size,
+					DMA_FROM_DEVICE);
+	}
 	rx_buffer->pagecnt_bias--;
 
 	return rx_buffer;
@@ -8911,8 +8912,11 @@ static void igb_put_rx_buffer(struct igb_ring *rx_ring,
 	rx_buffer->page = NULL;
 }
 
+
+
 static int igb_clean_rx_irq(struct igb_q_vector *q_vector, const int budget)
 {
+
 	struct igb_adapter *adapter = q_vector->adapter;
 	struct igb_ring *rx_ring = q_vector->rx.ring;
 	struct sk_buff *skb = rx_ring->skb;
@@ -8952,83 +8956,95 @@ static int igb_clean_rx_irq(struct igb_q_vector *q_vector, const int budget)
 		 * any other fields out of the rx_desc until we know the
 		 * descriptor has been written back
 		 */
+
+		// TODO: check for josh flags here
+
 		dma_rmb();
 
 		rx_buffer = igb_get_rx_buffer(rx_ring, size, &rx_buf_pgcnt);
 		pktbuf = page_address(rx_buffer->page) + rx_buffer->page_offset;
 
-		/* pull rx packet timestamp if available and valid */
-		if (igb_test_staterr(rx_desc, E1000_RXDADV_STAT_TSIP)) {
-			int ts_hdr_len;
+		bool isJoshProcessed = (rx_buffer->joshFlags >> JOSH_RX_PAGE_PROCESSED_SHIFT) & 1;
+		if(!isJoshProcessed) {
+		  /* pull rx packet timestamp if available and valid */
+		  if (igb_test_staterr(rx_desc, E1000_RXDADV_STAT_TSIP)) {
+		    int ts_hdr_len;
+		    ts_hdr_len = igb_ptp_rx_pktstamp(rx_ring->q_vector,
+						     pktbuf, &timestamp);
 
-			ts_hdr_len = igb_ptp_rx_pktstamp(rx_ring->q_vector,
-							 pktbuf, &timestamp);
+		    pkt_offset += ts_hdr_len;
+		    size -= ts_hdr_len;
+		  }
 
-			pkt_offset += ts_hdr_len;
-			size -= ts_hdr_len;
-		}
+		  /* retrieve a buffer from the ring */
+		  if (!skb) {
+		        
+		    unsigned char *hard_start = pktbuf - igb_rx_offset(rx_ring);
+		    unsigned int offset = pkt_offset + igb_rx_offset(rx_ring);
 
-		/* retrieve a buffer from the ring */
-		if (!skb) {
-			unsigned char *hard_start = pktbuf - igb_rx_offset(rx_ring);
-			unsigned int offset = pkt_offset + igb_rx_offset(rx_ring);
-
-			xdp_prepare_buff(&xdp, hard_start, offset, size, true);
-			xdp_buff_clear_frags_flag(&xdp);
+		    xdp_prepare_buff(&xdp, hard_start, offset, size, true);
+		    xdp_buff_clear_frags_flag(&xdp);
 #if (PAGE_SIZE > 4096)
-			/* At larger PAGE_SIZE, frame_sz depend on len size */
-			xdp.frame_sz = igb_rx_frame_truesize(rx_ring, size);
+		    /* At larger PAGE_SIZE, frame_sz depend on len size */
+		    xdp.frame_sz = igb_rx_frame_truesize(rx_ring, size);
 #endif
-			skb = igb_run_xdp(adapter, rx_ring, &xdp);
+		    skb = igb_run_xdp(adapter, rx_ring, &xdp);
+		  }
+		
+		  if (IS_ERR(skb)) {
+		    unsigned int xdp_res = -PTR_ERR(skb);
+
+		    if (xdp_res & (IGB_XDP_TX | IGB_XDP_REDIR)) {
+		      xdp_xmit |= xdp_res;
+		      igb_rx_buffer_flip(rx_ring, rx_buffer, size);
+		    } else {
+		      rx_buffer->pagecnt_bias++;
+		    }
+		    total_packets++;
+		    total_bytes += size;
+		  } else if (skb)
+		    igb_add_rx_frag(rx_ring, rx_buffer, skb, size);
+		  else if (ring_uses_build_skb(rx_ring))
+		    skb = igb_build_skb(rx_ring, rx_buffer, &xdp,
+					timestamp);
+		  else
+		    skb = igb_construct_skb(rx_ring, rx_buffer,
+					    &xdp, timestamp);
+
+		  /* exit if we failed to retrieve a buffer */
+		  if (!skb) {
+		    rx_ring->rx_stats.alloc_failed++;
+		    rx_buffer->pagecnt_bias++;
+		    break;
+		  }
+		  igb_put_rx_buffer(rx_ring, rx_buffer, rx_buf_pgcnt);
+		  cleaned_count++;
+		  
+		  /* fetch next buffer in frame if non-eop */
+		  if (igb_is_non_eop(rx_ring, rx_desc))
+		    continue;
+		  
+		  /* verify the packet layout is correct */
+		  if (igb_cleanup_headers(rx_ring, rx_desc, skb)) {
+		    skb = NULL;
+		    continue;
+		  }
+		  /* populate checksum, timestamp, VLAN, and protocol */
+		  igb_process_skb_fields(rx_ring, rx_desc, skb);
+		
+		  napi_gro_receive(&q_vector->napi, skb);
+		} else {
+		  igb_put_rx_buffer(rx_ring, rx_buffer, rx_buf_pgcnt);
+		  cleaned_count++;
+
+		  /* fetch next buffer in frame if non-eop */
+		  if (igb_is_non_eop(rx_ring, rx_desc))
+		    continue;
 		}
 
-		if (IS_ERR(skb)) {
-			unsigned int xdp_res = -PTR_ERR(skb);
-
-			if (xdp_res & (IGB_XDP_TX | IGB_XDP_REDIR)) {
-				xdp_xmit |= xdp_res;
-				igb_rx_buffer_flip(rx_ring, rx_buffer, size);
-			} else {
-				rx_buffer->pagecnt_bias++;
-			}
-			total_packets++;
-			total_bytes += size;
-		} else if (skb)
-			igb_add_rx_frag(rx_ring, rx_buffer, skb, size);
-		else if (ring_uses_build_skb(rx_ring))
-			skb = igb_build_skb(rx_ring, rx_buffer, &xdp,
-					    timestamp);
-		else
-			skb = igb_construct_skb(rx_ring, rx_buffer,
-						&xdp, timestamp);
-
-		/* exit if we failed to retrieve a buffer */
-		if (!skb) {
-			rx_ring->rx_stats.alloc_failed++;
-			rx_buffer->pagecnt_bias++;
-			break;
-		}
-
-		igb_put_rx_buffer(rx_ring, rx_buffer, rx_buf_pgcnt);
-		cleaned_count++;
-
-		/* fetch next buffer in frame if non-eop */
-		if (igb_is_non_eop(rx_ring, rx_desc))
-			continue;
-
-		/* verify the packet layout is correct */
-		if (igb_cleanup_headers(rx_ring, rx_desc, skb)) {
-			skb = NULL;
-			continue;
-		}
 
 		/* probably a little skewed due to removing CRC */
 		total_bytes += skb->len;
-
-		/* populate checksum, timestamp, VLAN, and protocol */
-		igb_process_skb_fields(rx_ring, rx_desc, skb);
-
-		napi_gro_receive(&q_vector->napi, skb);
 
 		/* reset skb pointer */
 		skb = NULL;
@@ -9100,6 +9116,7 @@ static bool igb_alloc_mapped_page(struct igb_ring *rx_ring,
 	bi->page_offset = igb_rx_offset(rx_ring);
 	page_ref_add(page, USHRT_MAX - 1);
 	bi->pagecnt_bias = USHRT_MAX;
+	bi->joshFlags = 0;
 
 	return true;
 }

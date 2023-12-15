@@ -6,7 +6,9 @@
 
 #include "josh.h"
 
-
+static void mybug() {
+  BUG();
+}
 
 /*
 
@@ -320,7 +322,16 @@ static int thread_function(void *threadData) {
     // TODO - what is the correct return code over here?
     return PTR_ERR(thread);    
   }
-  pr_info("Device Info: qvecs %d, tx %d, rx %d, min_frame %d, max_frame %d",
+  int cpu = smp_processor_id();
+  // TODO MYASSERT(cpu == PINNED_CPU);
+
+  MYASSERT(adapter->num_tx_queues <= 16, "Unexpected, number of tx queus more than 16");
+  int tx_ring_idx = cpu % adapter->num_tx_queues;
+  // TODO: Use IGB_PTP_TX_IN_PROGRESS
+  struct igb_ring *tx_ring = adapter->tx_ring[tx_ring_idx];
+
+  pr_info("Device Info: cpu qvec: %p, qvecs %d, tx %d, rx %d, min_frame %d, max_frame %d",
+	  tx_ring->q_vector,
 	  adapter->num_q_vectors,
 	  adapter->num_tx_queues,
 	  adapter->num_rx_queues,
@@ -339,19 +350,11 @@ static int thread_function(void *threadData) {
 	u16 link_duplex;
   */
   
-  int cpu = smp_processor_id();
-  // TODO MYASSERT(cpu == PINNED_CPU);
-
-  MYASSERT(adapter->num_tx_queues <= 16, "Unexpected, number of tx queus more than 16");
-  int tx_ring_idx = cpu % adapter->num_tx_queues;
 
   // TODO assert num rings is the same as number of cpus
   pr_info("Running on cpu %d", cpu);
   MYASSERT(cpu >= 0 && cpu <= 0, "Unexpected large cpu");
   
-  // TODO: Use IGB_PTP_TX_IN_PROGRESS
-  struct igb_ring *tx_ring = adapter->tx_ring[tx_ring_idx];
-
   struct netdev_queue *nq = txring_txq(tx_ring);
   MYASSERT(nq, "No associated netdev queue");
 
@@ -376,13 +379,11 @@ static int thread_function(void *threadData) {
   for(int i = 0; i < MSG_COUNT; ++i) {
     initializeNetworkBuffer(&packets[i]);
   }
-  igb_dump(adapter);
+  //  igb_dump(adapter);
 
-  int i = 0;
-  //  for(int i = 0; i < MSG_COUNT && !kthread_should_stop(); ++i) {
+  for(int i = 0; i < MSG_COUNT && !kthread_should_stop(); ++i) {
 
-       struct UDPPacket* pkt = packets;
-       MYASSERT(i == 0, "I");
+       struct UDPPacket* pkt = &packets[i];
        pkt->data[0] = (i % 10) + '0';
        MYASSERT(!(test_bit(__IGB_DOWN, &adapter->state)), "IGB Down");
        MYASSERT(!(test_bit(__IGB_TESTING, &adapter->state)), "IGB Testing");
@@ -408,6 +409,7 @@ static int thread_function(void *threadData) {
        olinfo_status |= tx_ring->reg_idx << 4;
        tx_desc->read.olinfo_status = cpu_to_le32(olinfo_status);
 
+       // TODO - configure and use dca instead.
        pr_info("DMAing Data %d", dataSz);       
        dma_addr_t dma;
        dma = dma_map_single(tx_ring->dev, data, dataSz, DMA_TO_DEVICE);
@@ -441,9 +443,9 @@ static int thread_function(void *threadData) {
        pr_info("Writing tail register to trigger send: dma %llu", dma);
        writel(nextIdx, tx_ring->tail);
        // TODO What does igb_xdp_ring_update_tail do?
-       //  }
+ }
   __netif_tx_unlock(nq);
-  igb_dump(adapter);
+  //  igb_dump(adapter);
 
   thread = NULL;
 
