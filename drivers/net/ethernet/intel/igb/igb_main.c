@@ -41,6 +41,7 @@
 #include <linux/i2c.h>
 #include "igb.h"
 #include "josh/cppkern/IGB82576Interop.h"
+#include "josh/lowlatencylab/client/launch.h"
 
 
 enum queue_mode {
@@ -673,6 +674,7 @@ static int __init igb_init_module(void)
 	dca_register_notify(&dca_notifier);
 #endif
 	ret = pci_register_driver(&igb_driver);
+	initStrategy();
 	return ret;
 }
 
@@ -7102,10 +7104,11 @@ static irqreturn_t igb_msix_ring(int irq, void *data)
 	//	ktime_get_real_ts64(&last_recorded_time);
 	// TODO - what are these interrupts coming in on queue 0?
 
-//	if(q_vector->rx.ring) {
+	if(q_vector->rx.ring) {
 	  // TODO - fix all marketdata to a particular queue so you should always call out.
-//	  josh_handle_packets(q_vector, irq);
-//	}
+
+		strategyPath(q_vector, irq);
+	}
 	napi_schedule(&q_vector->napi);
 
 
