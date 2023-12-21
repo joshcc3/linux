@@ -5,9 +5,11 @@
 #include <linux/delay.h>
 
 #include "josh_receive.h"
+#include "josh/cppkern/test.h"
 
-static void mybug() {
-  BUG();
+static void mybug()
+{
+	BUG();
 }
 
 /*
@@ -24,7 +26,7 @@ static void mybug() {
   srrctl controls the size of the receive buffers.
   - make sure Drop_en is set to false: driver sets drop enable if supporting multiple queues and rx flow is disabled
   - assert RDMTS == 0. i.e. that an interrupt is issue as soon as there is any data availableo
-    
+
 
   the driv
   TODO - for all the ones we configure here that are not available in ethtool - add them to the driver.
@@ -42,7 +44,7 @@ static void mybug() {
   assert((rctl & SECRC) == 1); // strip ecrc and do not report in descriptor length
 
   u32 srrctl = r32(E1000_SRRCTL(phyQIx));
-  assert((srrctl & 0x63) == 1); // receive window size in 2^(x + 10) 
+  assert((srrctl & 0x63) == 1); // receive window size in 2^(x + 10)
   assert((srrctl & (0x31 << 20)) == 0); // rdmst - rx desc min sz threshold
   assert((srrctl & (1 << 31)) == 0); // drop enabled
 
@@ -103,7 +105,7 @@ static void mybug() {
 
 
 
-  
+
   receive descriptor info
   asserts:
   RSS == 0
@@ -133,9 +135,9 @@ static void mybug() {
 
 
   struct igb_q_vector {
-  struct igb_adapter *adapter;	 backlink 
-  int cpu;			 CPU for DCA 
-  u32 eims_value;			 EIMS mask value 
+  struct igb_adapter *adapter;	 backlink
+  int cpu;			 CPU for DCA
+  u32 eims_value;			 EIMS mask value
 
   u16 itr_val;
   u8 set_itr;
@@ -144,10 +146,10 @@ static void mybug() {
   struct igb_ring_container rx, tx;
 
   struct napi_struct napi;
-  struct rcu_head rcu;	 to avoid race with update stats on free 
+  struct rcu_head rcu;	 to avoid race with update stats on free
   char name[IFNAMSIZ + 9];
 
-  for dynamic allocation of rings associated with this q_vector 
+  for dynamic allocation of rings associated with this q_vector
   struct igb_ring ring[] ____cacheline_internodealigned_in_smp;
   };
 
@@ -155,55 +157,55 @@ static void mybug() {
 
 
   struct igb_ring_container {
-  struct igb_ring *ring;		 pointer to linked list of rings 
-  unsigned int total_bytes;	 total bytes processed this int 
-  unsigned int total_packets;	 total packets processed this int 
-  u16 work_limit;			 total work allowed per interrupt 
-  u8 count;			 total number of rings in vector 
-  u8 itr;				 current ITR setting for ring 
+  struct igb_ring *ring;		 pointer to linked list of rings
+  unsigned int total_bytes;	 total bytes processed this int
+  unsigned int total_packets;	 total packets processed this int
+  u16 work_limit;			 total work allowed per interrupt
+  u8 count;			 total number of rings in vector
+  u8 itr;				 current ITR setting for ring
   };
 
 
 
 
   struct igb_ring {
-  struct igb_q_vector *q_vector;	 backlink to q_vector 
-  struct net_device *netdev;	 back pointer to net_device 
+  struct igb_q_vector *q_vector;	 backlink to q_vector
+  struct net_device *netdev;	 back pointer to net_device
   struct bpf_prog *xdp_prog;
-  struct device *dev;		 device pointer for dma mapping 
-  union {				 array of buffer info structs 
+  struct device *dev;		 device pointer for dma mapping
+  union {				 array of buffer info structs
   struct igb_tx_buffer *tx_buffer_info;
   struct igb_rx_buffer *rx_buffer_info;
   };
-  void *desc;			 descriptor ring memory 
-  unsigned long flags;		 ring specific flags 
-  void __iomem *tail;		 pointer to ring tail register 
-  dma_addr_t dma;			 phys address of the ring 
-  unsigned int  size;		 length of desc. ring in bytes 
+  void *desc;			 descriptor ring memory
+  unsigned long flags;		 ring specific flags
+  void __iomem *tail;		 pointer to ring tail register
+  dma_addr_t dma;			 phys address of the ring
+  unsigned int  size;		 length of desc. ring in bytes
 
-  u16 count;			 number of desc. in the ring 
+  u16 count;			 number of desc. in the ring
   u8 queue_index;			 logical index of the ring
-  u8 reg_idx;			 physical index of the ring 
-  bool launchtime_enable;		 true if LaunchTime is enabled 
-  bool cbs_enable;		 indicates if CBS is enabled 
-  s32 idleslope;			 idleSlope in kbps 
-  s32 sendslope;			 sendSlope in kbps 
-  s32 hicredit;			 hiCredit in bytes 
-  s32 locredit;			 loCredit in bytes 
+  u8 reg_idx;			 physical index of the ring
+  bool launchtime_enable;		 true if LaunchTime is enabled
+  bool cbs_enable;		 indicates if CBS is enabled
+  s32 idleslope;			 idleSlope in kbps
+  s32 sendslope;			 sendSlope in kbps
+  s32 hicredit;			 hiCredit in bytes
+  s32 locredit;			 loCredit in bytes
 
-  everything past this point are written often 
+  everything past this point are written often
   u16 next_to_clean;
   u16 next_to_use;
   u16 next_to_alloc;
 
   union {
-  TX 
+  TX
   struct {
   struct igb_tx_queue_stats tx_stats;
   struct u64_stats_sync tx_syncp;
   struct u64_stats_sync tx_syncp2;
   };
-  RX 
+  RX
   struct {
   struct sk_buff *skb;
   struct igb_rx_queue_stats rx_stats;
@@ -221,158 +223,174 @@ static void mybug() {
   Its interesting, the NIC fires rx interrupts for packets that come in however they have a size of 0. Multicast packets I understand, that is configured at the nic level. however ip6 and even ipv4 dhcp packets come in from the nic with the rx descriptor set to 0. Wonder why this is.
   Ok for another thing we get regular interrupts from the nic every 2 seconds. I wonder what these interrupts are.
 
+todo we should make sure that the driver calls its poll in a different thread
+
 */
 
+void handleMDPacket(struct UDPMDPacket *packet, u16 packetSz)
+{
+	// update the page reference count.
+	// there is a page count bias which seems to control how and when pages are reused (reused whem?);
+	//
+	pr_info("version %d, ihl %d, udp sz %d, packetlen %d",
+		packet->ip.version, packet->ip.ihl, ntohs(packet->udp.len),
+		packetSz);
+	MYASSERT(packet->ip.version == 4, "IP VERSION");
+	MYASSERT(packet->ip.ihl == 5, "IHL");
 
-void handleMDPacket(struct igb_q_vector* qvec, struct UDPMDPacket* packet, u16 packetSz) {
+	MYASSERT(packet->udp.len == sizeof(struct UDPPacket) -
+					    sizeof(struct ethhdr) -
+					    sizeof(struct iphdr),
+		 "PACKET SZ");
+	MYASSERT(packetSz == sizeof(struct UDPMDPacket), "Packet len");
 
-  // update the page reference count.
-  // there is a page count bias which seems to control how and when pages are reused (reused whem?);
-  // 
-  pr_info("version %d, ihl %d, udp sz %d, packetlen %d", packet->ip.version, packet->ip.ihl, ntohs(packet->udp.len), packetSz);
-  MYASSERT(packet->ip.version == 4, "IP VERSION");
-  MYASSERT(packet->ip.ihl == 5, "IHL");
+	MYASSERT(packetSz == sizeof(struct UDPMDPacket), "Packet Sz");
+	pr_info("Observed MD Packet %llu, %llu, %llu, %d, %x",
+		packet->payload.seqNo, packet->payload.localTimestamp,
+		packet->payload.price, packet->payload.qty,
+		packet->payload.flags);
 
-  MYASSERT(packet->udp.len == sizeof(struct UDPPacket) - sizeof(struct ethhdr) - sizeof(struct iphdr), "PACKET SZ");
-  MYASSERT(packetSz == sizeof(struct UDPMDPacket), "Packet len");
-  MYASSERT(!qvec->tx.ring, "tx ring");
-  MYASSERT(NULL != qvec->ring, "qvec ring");
-  MYASSERT(qvec->cpu == 0, "cpu");
-  MYASSERT(NULL != qvec->itr_register, "register");
-  MYASSERT(qvec->rx.count != 0, "num desc");
-  MYASSERT(qvec->rx.total_bytes == 0, "processed bytes");
-  MYASSERT(qvec->rx.total_packets == 0, "processed packets");
-
-  MYASSERT(packetSz == sizeof(struct UDPMDPacket), "Packet Sz");
-  pr_info("Observed MD Packet %llu, %llu, %llu, %d, %x", packet->payload.seqNo, packet->payload.localTimestamp, packet->payload.price, packet->payload.qty, packet->payload.flags);
-  
+	swapcontext_(&mainCtx, &blockingRecvCtx);
 }
 
-void handlePacket(struct igb_q_vector* qvec, int packetSz, int ntc) {
-  struct igb_ring* rx = qvec->rx.ring;
-  struct igb_rx_buffer* rxbuf = &(rx->rx_buffer_info[ntc]);
-  struct page *dataPage = rxbuf->page;
-  MYASSERT(rxbuf->page_offset < PAGE_SIZE, "PAGE_OFFSET invalid");
-  struct UDPMDPacket* packet = (struct UDPMDPacket*) (page_address(dataPage) + rxbuf->page_offset);
-  bool isIP = packet->eth.h_proto == htons(ETH_P_IP);
-  // TODO Filter this on the incoming port.
-  bool isMDPacket = isIP && packet->ip.protocol == 17 && packet->payload.packetType == MD_PACKET_TYPE;
+void handlePacket(struct igb_q_vector *qvec, int packetSz, int ntc)
+{
+	MYASSERT(!qvec->tx.ring, "tx ring");
+	MYASSERT(NULL != qvec->ring, "qvec ring");
+	MYASSERT(qvec->cpu == 0, "cpu");
+	MYASSERT(NULL != qvec->itr_register, "register");
+	MYASSERT(qvec->rx.count != 0, "num desc");
+	MYASSERT(qvec->rx.total_bytes == 0, "processed bytes");
+	MYASSERT(qvec->rx.total_packets == 0, "processed packets");
 
-  if(isMDPacket) {
-    rxbuf->joshFlags |= (1 << JOSH_RX_PAGE_PROCESSED_SHIFT);
-    handleMDPacket(qvec, packet, packetSz);
-  }
-  
+	struct igb_ring *rx = qvec->rx.ring;
+	struct igb_rx_buffer *rxbuf = &(rx->rx_buffer_info[ntc]);
+	struct page *dataPage = rxbuf->page;
+	MYASSERT(rxbuf->page_offset < PAGE_SIZE, "PAGE_OFFSET invalid");
+	struct UDPMDPacket *packet =
+		(struct UDPMDPacket *)(page_address(dataPage) +
+				       rxbuf->page_offset);
+	bool isIP = packet->eth.h_proto == htons(ETH_P_IP);
+	// TODO Filter this on the incoming port.
+	bool isMDPacket = isIP && packet->ip.protocol == 17 &&
+			  packet->payload.packetType == MD_PACKET_TYPE;
+
+	if (isMDPacket) {
+		rxbuf->joshFlags |= (1 << JOSH_RX_PAGE_PROCESSED_SHIFT);
+		handleMDPacket(packet, packetSz);
+	}
 }
 
+void josh_handle_packets(struct igb_q_vector *qvec, int irq)
+{
+	struct igb_ring *rx = (qvec->rx.ring);
+	int iterations = 0;
+	bool isFrag = false;
 
-void josh_handle_packets(struct igb_q_vector* qvec, int irq) {
+	int ogNTC = rx->next_to_clean;
+	int ogNTU = rx->next_to_use;
+	int ogNTA = rx->next_to_alloc;
 
-  struct igb_ring* rx = (qvec->rx.ring);
-  int iterations = 0;
-  bool isFrag = false;
+	while (true) {
+		// TODO what happens when we read the rescriptor descToClean? Is that mmap io and therefore can the nic keep pushing descriptors as we write them back to it.
+		// TODO - check for interrupts that have happened in the meantime. are there any rules about how long this interrupt servicing routine can take - hopefully we cannot be preempted here.
+		// TODO - does a read on the descriptor 0 it? Highly unlikely but do need to verify in the data sheet.
+		u16 ntc = rx->next_to_clean;
+		MYASSERT(ntc <= rx->count, "Invalid next to clean");
 
-  int ogNTC = rx->next_to_clean;
-  int ogNTU = rx->next_to_use;
-  int ogNTA = rx->next_to_alloc;
-    
-  while(true) {
-    // TODO what happens when we read the rescriptor descToClean? Is that mmap io and therefore can the nic keep pushing descriptors as we write them back to it.
-    // TODO - check for interrupts that have happened in the meantime. are there any rules about how long this interrupt servicing routine can take - hopefully we cannot be preempted here.
-    // TODO - does a read on the descriptor 0 it? Highly unlikely but do need to verify in the data sheet.
-    u16 ntc = rx->next_to_clean;
-    MYASSERT(ntc <= rx->count, "Invalid next to clean");
+		union e1000_adv_rx_desc *descToClean =
+			IGB_RX_DESC(rx, rx->next_to_clean);
+		u16 packetSz = le16_to_cpu(descToClean->wb.upper.length);
 
-    union e1000_adv_rx_desc* descToClean = IGB_RX_DESC(rx, rx->next_to_clean);
-    u16 packetSz = le16_to_cpu(descToClean->wb.upper.length);
+		if (packetSz == 0) {
+			break;
+		}
+		MYASSERT(++iterations <= rx->count,
+			 "Unexpectedly looped through rx buffers");
+		MYASSERT(rx->next_to_clean != rx->next_to_use &&
+				 rx->next_to_clean != rx->next_to_alloc,
+			 "RX ring next_to_clean invalid");
 
-    if(packetSz == 0) {
-      break;
-    }
-    MYASSERT(++iterations <= rx->count, "Unexpectedly looped through rx buffers");
-    MYASSERT(rx->next_to_clean != rx->next_to_use && rx->next_to_clean != rx->next_to_alloc, "RX ring next_to_clean invalid");
+		MYASSERT(packetSz == le16_to_cpu(descToClean->wb.upper.length),
+			 "Read on rx desc 0 it");
+		u32 stBits = descToClean->wb.upper.status_error;
+		u32 status_error = stBits >> 19;
+		u32 status = stBits & ~((u32)(-1) << 19);
+		bool dd = status & 1;
+		bool eop = (status >> 1) & 1;
+		// TODO - this is a bug with the qemu hardware implementation - it does not set this. (grepping for PIF)
+		// AFAIK - the driver doesn't use this either *shrug*, can test to see on real hardware though
+		//    bool pif = (status >> 6) & 1;
+		bool vp = (status >> 3) & 1;
 
+		MYASSERT(dd == 1, "Descriptor done flag unset.");
 
-    MYASSERT(packetSz == le16_to_cpu(descToClean->wb.upper.length), "Read on rx desc 0 it");
-    u32 stBits = descToClean->wb.upper.status_error;
-    u32 status_error = stBits >> 19;
-    u32 status = stBits & ~((u32)(-1) << 19);
-    bool dd = status & 1;
-    bool eop = (status >> 1) & 1;
-    // TODO - this is a bug with the qemu hardware implementation - it does not set this. (grepping for PIF)
-    // AFAIK - the driver doesn't use this either *shrug*, can test to see on real hardware though
-    //    bool pif = (status >> 6) & 1;
-    bool vp = (status >> 3) & 1;
+		if ((status_error) != 0) {
+			pr_info("NIC reported error: %x",
+				descToClean->wb.upper.status_error);
+			continue;
+		}
+		bool packetFilters = false;
+		bool b;
 
-    MYASSERT(dd == 1, "Descriptor done flag unset.");
-
-    if((status_error) != 0) {
-      pr_info("NIC reported error: %x", descToClean->wb.upper.status_error);
-      continue;
-    }
-    bool packetFilters = false;
-    bool b;
-    
-    if((b = eop != 1)) {
-      isFrag = true;
-      packetFilters |= b;
-      pr_info("Skipping fragmented packets");
-    }
-    // TODO Why is pif set?
-    /*if((b = pif == 1)) {
+		if ((b = eop != 1)) {
+			isFrag = true;
+			packetFilters |= b;
+			pr_info("Skipping fragmented packets");
+		}
+		// TODO Why is pif set?
+		/*if((b = pif == 1)) {
       packetFilters |= b;
       pr_info("Packets not destined for us");
 
       }*/
-    if((b = vp == 1)) {
-      packetFilters |= b;
-      pr_info("Vlan packet");
-    }
-    
-    if((b = dd != 1)) {
-      packetFilters |= b;
-      pr_info("Descriptor Done not set");
+		if ((b = vp == 1)) {
+			packetFilters |= b;
+			pr_info("Vlan packet");
+		}
 
-    }
-    if((b = packetSz == 0)) {
-      packetFilters |= b;
-      pr_info("LEngth is 0");
-    }
-    packetFilters |= isFrag;
+		if ((b = dd != 1)) {
+			packetFilters |= b;
+			pr_info("Descriptor Done not set");
+		}
+		if ((b = packetSz == 0)) {
+			packetFilters |= b;
+			pr_info("LEngth is 0");
+		}
+		packetFilters |= isFrag;
 
-    isFrag = isFrag && (eop == 0);
+		isFrag = isFrag && (eop == 0);
 
-    if(packetFilters) {
-      pr_info("Bailing on irq %d, queue %d", irq, qvec->rx.ring->queue_index);
-      continue;
-    }
+		if (packetFilters) {
+			pr_info("Bailing on irq %d, queue %d", irq,
+				qvec->rx.ring->queue_index);
+			continue;
+		}
 
-    dma_rmb();
+		dma_rmb();
 
-    struct igb_rx_buffer* rxbuf = &(rx->rx_buffer_info[ntc]);
-    prefetchw(rxbuf->page);
-    dma_sync_single_range_for_cpu(rx->dev,
-				  rxbuf->dma,
-				  rxbuf->page_offset,
-				  packetSz,
-				  DMA_FROM_DEVICE);
+		struct igb_rx_buffer *rxbuf = &(rx->rx_buffer_info[ntc]);
+		prefetchw(rxbuf->page);
+		dma_sync_single_range_for_cpu(rx->dev, rxbuf->dma,
+					      rxbuf->page_offset, packetSz,
+					      DMA_FROM_DEVICE);
 
-    MYASSERT(rxbuf->joshFlags == 0, "Josh Flags Descriptor not reset.");
-    rxbuf->joshFlags = 1 << JOSH_RX_PAGE_IN_CACHE_SHIFT;
-    handlePacket(qvec, packetSz, ntc);
-    rx->next_to_clean = (rx->next_to_clean + 1) % rx->count;
-  }
-  // must alloc buffer.
-  rx->next_to_clean = ogNTC;
+		MYASSERT(rxbuf->joshFlags == 0,
+			 "Josh Flags Descriptor not reset.");
+		rxbuf->joshFlags = 1 << JOSH_RX_PAGE_IN_CACHE_SHIFT;
+		handlePacket(qvec, packetSz, ntc);
+		rx->next_to_clean = (rx->next_to_clean + 1) % rx->count;
+	}
+	// must alloc buffer.
+	rx->next_to_clean = ogNTC;
 
-
-  MYASSERT(ogNTC == rx->next_to_clean, "OG ntc rx ring state not preserved.");
-  MYASSERT(ogNTU == rx->next_to_use, "OG ntu rx ring state not preserved.");
-  MYASSERT(ogNTA == rx->next_to_alloc, "OG nta rx ring state not preserved.");
-
-
+	MYASSERT(ogNTC == rx->next_to_clean,
+		 "OG ntc rx ring state not preserved.");
+	MYASSERT(ogNTU == rx->next_to_use,
+		 "OG ntu rx ring state not preserved.");
+	MYASSERT(ogNTA == rx->next_to_alloc,
+		 "OG nta rx ring state not preserved.");
 }
-
 
 /*
   Bugs: I'm getting bugs with a kernel panic -was getting it when trying to get the realtime - after doing a lot of gdb

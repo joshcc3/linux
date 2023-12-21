@@ -97,12 +97,6 @@ config JME
 
 	  To compile this driver as a module, choose M here. The module
 	  will be called jme.
-config JOSH
-	tristate "Josh"
-	depends on IGB
-	help
-		Josh driver. Will be called josh.
-
 
 config KORINA
 	tristate "Korina (IDT RC32434) Ethernet support"

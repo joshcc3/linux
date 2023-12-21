@@ -40,11 +40,8 @@
 #endif
 #include <linux/i2c.h>
 #include "igb.h"
-#include "josh_receive.h"
+#include "josh/cppkern/IGB82576Interop.h"
 
-static void mybug() {
-  pr_info("Bug detected, continuing");
-}
 
 enum queue_mode {
 	QUEUE_MODE_STRICT_PRIORITY,
@@ -289,6 +286,10 @@ static const struct igb_reg_info igb_reg_info_tbl[] = {
 	/* List Terminator */
 	{}
 };
+
+//static void mybug() {
+//  pr_info("Bug detected, continuing");
+//}
 
 /* igb_regdump - register printout routine */
 static void igb_regdump(struct e1000_hw *hw, struct igb_reg_info *reginfo)
@@ -7101,10 +7102,10 @@ static irqreturn_t igb_msix_ring(int irq, void *data)
 	//	ktime_get_real_ts64(&last_recorded_time);
 	// TODO - what are these interrupts coming in on queue 0?
 
-	if(q_vector->rx.ring) {
+//	if(q_vector->rx.ring) {
 	  // TODO - fix all marketdata to a particular queue so you should always call out.
-	  josh_handle_packets(q_vector, irq);
-	}
+//	  josh_handle_packets(q_vector, irq);
+//	}
 	napi_schedule(&q_vector->napi);
 
 
@@ -8874,8 +8875,8 @@ static struct igb_rx_buffer *igb_get_rx_buffer(struct igb_ring *rx_ring,
 		0;
 #endif
 
-        if(!((rx_buffer->joshFlags >> JOSH_RX_PAGE_IN_CACHE_SHIFT) & 1)) {
-	  MYASSERT(!((rx_buffer->joshFlags >> JOSH_RX_PAGE_PROCESSED_SHIFT) & 1), "Page not in cache but processed");
+    if(!((rx_buffer->joshFlags >> JOSH_RX_PAGE_IN_CACHE_SHIFT) & 1)) {
+	  //MYASSERT(!((rx_buffer->joshFlags >> JOSH_RX_PAGE_PROCESSED_SHIFT) & 1), "Page not in cache but processed");
 
 	  prefetchw(rx_buffer->page);
 
@@ -8907,7 +8908,6 @@ static void igb_put_rx_buffer(struct igb_ring *rx_ring,
 		__page_frag_cache_drain(rx_buffer->page,
 					rx_buffer->pagecnt_bias);
 	}
-
 	/* clear contents of rx_buffer */
 	rx_buffer->page = NULL;
 }

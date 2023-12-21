@@ -1,0 +1,3 @@
+[submodule "drivers/net/ethernet/intel/igb/josh"]
+	path = drivers/net/ethernet/intel/igb/josh
+	url = git@github.com:joshcc3/hft.git
