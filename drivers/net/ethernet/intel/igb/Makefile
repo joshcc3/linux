@@ -5,7 +5,8 @@
 #
 
 
-ccflags-y += -c -g $(FLAGS) -Wall
+
+ccflags-y += -c -g $(FLAGS) -D__KERNEL__ -fmacro-prefix-map=./= -Wall
 
 # Apply C flags to the cpp compiler and disable cpp features that can't be supported in the kernel module
 cxx-selected-flags = $(shell echo $(KBUILD_CFLAGS) \
@@ -30,7 +31,8 @@ cxxflags = $(ccflags-y) \
             -nostdlib \
             -fno-rtti \
             -fno-exceptions \
-            -std=c++17
+            -std=c++17 \
+            -DMODULE -DKBUILD_MODNAME='"igb"' -D__KBUILD_MODNAME=kmod_igb
 
 HOSTCXX := g++
 
@@ -38,8 +40,8 @@ cxx-prefix := " $(FLAGS) | $(HOSTCXX) $(cxxflags) [M]  "
 
 
 %.cpp.o: %.cpp
-	@echo $(cxx-prefix)$@
-	@$(HOSTCXX) $(cxxflags) $< -o $@
+	@echo @$(HOSTCXX) $(cxxflags)   -DKBUILD_BASENAME=$$(basename $@) $@
+	@$(HOSTCXX) $(cxxflags)   -DKBUILD_BASENAME=$$(basename $@) $< -o $@
 	@echo -n > $$(dirname $@)/.$$(basename $@).cmd
 
 
@@ -53,7 +55,7 @@ obj-$(CONFIG_IGB) += igb.o
 igb-objs := igb_main.o igb_ethtool.o e1000_82575.o \
 	    e1000_mac.o e1000_nvm.o e1000_phy.o e1000_mbx.o \
 	    e1000_i210.o igb_ptp.o igb_hwmon.o josh/cppkern/IGB82576Interop.o \
-		josh/cppkern/ucontext_.s.o \
+		josh/cppkern/ucontext_.s.o  \
 	    josh/cppkern/containers.cpp.o \
 		josh/lowlatencylab/client/CoroutineMngr.cpp.o josh/lowlatencylab/client/L2OB.cpp.o josh/lowlatencylab/client/launch.cpp.o \
 		josh/lowlatencylab/client/mdmcclient.cpp.o josh/lowlatencylab/client/Strat.cpp.o
@@ -64,3 +66,4 @@ igb-objs := igb_main.o igb_ethtool.o e1000_82575.o \
 #	    josh/mdmcclient.o josh/Strat.o
 
 #josh/cppkern/test.o josh/cppkern/cppsupport.o
+

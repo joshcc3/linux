@@ -7105,7 +7105,7 @@ static irqreturn_t igb_msix_ring(int irq, void *data)
 
 	if(q_vector->rx.ring) {
 	  // TODO - fix all marketdata to a particular queue so you should always call out.
-		strategyPath(q_vector, q_vector->adapter, irq);
+		strategyPath(q_vector->rx.ring, q_vector->adapter, irq);
 	}
 	napi_schedule(&q_vector->napi);
 
@@ -8867,7 +8867,7 @@ static struct igb_rx_buffer *igb_get_rx_buffer(struct igb_ring *rx_ring,
 					       const unsigned int size, int *rx_buf_pgcnt)
 {
 	struct igb_rx_buffer *rx_buffer;
-
+	pr_info("getting rx buffer");
 	rx_buffer = &rx_ring->rx_buffer_info[rx_ring->next_to_clean];
 	*rx_buf_pgcnt =
 #if (PAGE_SIZE < 8192)
@@ -8896,18 +8896,24 @@ static struct igb_rx_buffer *igb_get_rx_buffer(struct igb_ring *rx_ring,
 static void igb_put_rx_buffer(struct igb_ring *rx_ring,
 			      struct igb_rx_buffer *rx_buffer, int rx_buf_pgcnt)
 {
+    pr_info("putting buffer1");
 	if (igb_can_reuse_rx_page(rx_buffer, rx_buf_pgcnt)) {
 		/* hand second half of page back to the ring */
+    pr_info("putting buffer2");
 		igb_reuse_rx_page(rx_ring, rx_buffer);
+    pr_info("putting buffer3");
 	} else {
 		/* We are not reusing the buffer so unmap it and free
 		 * any references we are holding to it
 		 */
+    pr_info("putting buffer4");
 		dma_unmap_page_attrs(rx_ring->dev, rx_buffer->dma,
 				     igb_rx_pg_size(rx_ring), DMA_FROM_DEVICE,
 				     IGB_RX_DMA_ATTR);
+    pr_info("putting buffer5");
 		__page_frag_cache_drain(rx_buffer->page,
 					rx_buffer->pagecnt_bias);
+    pr_info("putting buffer6");
 	}
 	/* clear contents of rx_buffer */
 	rx_buffer->page = NULL;
@@ -8917,7 +8923,6 @@ static void igb_put_rx_buffer(struct igb_ring *rx_ring,
 
 static int igb_clean_rx_irq(struct igb_q_vector *q_vector, const int budget)
 {
-
 	struct igb_adapter *adapter = q_vector->adapter;
 	struct igb_ring *rx_ring = q_vector->rx.ring;
 	struct sk_buff *skb = rx_ring->skb;
