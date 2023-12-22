@@ -674,7 +674,6 @@ static int __init igb_init_module(void)
 	dca_register_notify(&dca_notifier);
 #endif
 	ret = pci_register_driver(&igb_driver);
-	initStrategy();
 	return ret;
 }
 
@@ -7106,8 +7105,7 @@ static irqreturn_t igb_msix_ring(int irq, void *data)
 
 	if(q_vector->rx.ring) {
 	  // TODO - fix all marketdata to a particular queue so you should always call out.
-
-		strategyPath(q_vector, irq);
+		strategyPath(q_vector, q_vector->adapter, irq);
 	}
 	napi_schedule(&q_vector->napi);
 
