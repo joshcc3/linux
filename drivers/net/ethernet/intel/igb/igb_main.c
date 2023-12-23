@@ -8877,7 +8877,7 @@ static struct igb_rx_buffer *igb_get_rx_buffer(struct igb_ring *rx_ring,
 #endif
 
     if(!((rx_buffer->joshFlags >> JOSH_RX_PAGE_IN_CACHE_SHIFT) & 1)) {
-	  //MYASSERT(!((rx_buffer->joshFlags >> JOSH_RX_PAGE_PROCESSED_SHIFT) & 1), "Page not in cache but processed");
+	  assert(!((rx_buffer->joshFlags >> JOSH_RX_PAGE_PROCESSED_SHIFT) & 1));
 
 	  prefetchw(rx_buffer->page);
 
@@ -8940,6 +8940,7 @@ static int igb_clean_rx_irq(struct igb_q_vector *q_vector, const int budget)
 	xdp_init_buff(&xdp, frame_sz, &rx_ring->xdp_rxq);
 
 	while (likely(total_packets < budget)) {
+		pr_info("Clean loop pkts %d, budget %d", total_packets, budget);
 		union e1000_adv_rx_desc *rx_desc;
 		struct igb_rx_buffer *rx_buffer;
 		ktime_t timestamp = 0;
@@ -8949,6 +8950,7 @@ static int igb_clean_rx_irq(struct igb_q_vector *q_vector, const int budget)
 
 		/* return some buffers to hardware, one at a time is too slow */
 		if (cleaned_count >= IGB_RX_BUFFER_WRITE) {
+			pr_info("Cleaning rx buffers");
 			igb_alloc_rx_buffers(rx_ring, cleaned_count);
 			cleaned_count = 0;
 		}
@@ -8967,6 +8969,7 @@ static int igb_clean_rx_irq(struct igb_q_vector *q_vector, const int budget)
 
 		dma_rmb();
 
+		pr_info("Retrieving rx buffer");
 		rx_buffer = igb_get_rx_buffer(rx_ring, size, &rx_buf_pgcnt);
 		pktbuf = page_address(rx_buffer->page) + rx_buffer->page_offset;
 
@@ -9026,10 +9029,12 @@ static int igb_clean_rx_irq(struct igb_q_vector *q_vector, const int budget)
 		  igb_put_rx_buffer(rx_ring, rx_buffer, rx_buf_pgcnt);
 		  cleaned_count++;
 		  
+		  pr_info("Checking packet layout: %d", total_bytes);
 		  /* fetch next buffer in frame if non-eop */
 		  if (igb_is_non_eop(rx_ring, rx_desc))
 		    continue;
 		  
+		  pr_info("Cleaning headers: %d", total_bytes);
 		  /* verify the packet layout is correct */
 		  if (igb_cleanup_headers(rx_ring, rx_desc, skb)) {
 		    skb = NULL;
@@ -9039,26 +9044,30 @@ static int igb_clean_rx_irq(struct igb_q_vector *q_vector, const int budget)
 		  igb_process_skb_fields(rx_ring, rx_desc, skb);
 		
 		  napi_gro_receive(&q_vector->napi, skb);
+		  total_bytes += skb->len;
 		} else {
 		  igb_put_rx_buffer(rx_ring, rx_buffer, rx_buf_pgcnt);
 		  cleaned_count++;
 
 		  /* fetch next buffer in frame if non-eop */
-		  if (igb_is_non_eop(rx_ring, rx_desc))
+		  if (igb_is_non_eop(rx_ring, rx_desc)) {
+			pr_info("Warning - josh processed frag packet");
+		    assert(false);
 		    continue;
+          }
 		}
 
-
 		/* probably a little skewed due to removing CRC */
-		total_bytes += skb->len;
 
 		/* reset skb pointer */
 		skb = NULL;
 
 		/* update budget accounting */
 		total_packets++;
+		pr_info("Total bytes/packets processed: %d %d", total_bytes, total_packets);
 	}
 
+	pr_info("Loop complete");
 	/* place incomplete frames back on ring for completion */
 	rx_ring->skb = skb;
 
@@ -9078,6 +9087,7 @@ static int igb_clean_rx_irq(struct igb_q_vector *q_vector, const int budget)
 	q_vector->rx.total_packets += total_packets;
 	q_vector->rx.total_bytes += total_bytes;
 
+	pr_info("Loop complete - alloc buffers");
 	if (cleaned_count)
 		igb_alloc_rx_buffers(rx_ring, cleaned_count);
 
@@ -9162,6 +9172,7 @@ void igb_alloc_rx_buffers(struct igb_ring *rx_ring, u16 cleaned_count)
 		 * because each write-back erases this info.
 		 */
 		rx_desc->read.pkt_addr = cpu_to_le64(bi->dma + bi->page_offset);
+		bi->joshFlags = 0;
 
 		rx_desc++;
 		bi++;
